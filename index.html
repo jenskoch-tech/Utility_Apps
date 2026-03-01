@@ -29,14 +29,23 @@
         button.active { background: var(--accent); color: white; transform: scale(0.96); }
         .btn-tension.active { background: var(--tension); }
         .btn-main { background: var(--accent); color: white; width: 100%; font-size: 1.1rem; padding: 18px; border-radius: 15px; border: none; font-weight: bold; margin-bottom: 10px; }
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        
+        /* History Item Styling */
+        .history-item { padding: 15px 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+        .history-row { display: flex; justify-content: space-between; align-items: center; }
+        .history-meta { font-size: 0.8rem; opacity: 0.8; margin-top: 5px; }
+        .history-btns { display: flex; gap: 10px; margin-top: 10px; }
+        .small-btn { padding: 6px 12px; font-size: 0.75rem; border-radius: 6px; }
+
         .tab-bar { position: fixed; bottom: 0; width: 100%; background: var(--card); display: flex; border-top: 1px solid rgba(0,0,0,0.1); padding-bottom: 30px; }
         .tab-item { flex: 1; text-align: center; padding: 15px; font-size: 0.9rem; opacity: 0.4; font-weight: bold; cursor: pointer; }
         .tab-item.active { opacity: 1; color: var(--accent); }
         .page { display: none; } .page.active { display: block; }
-        #pdf-export-container { width: 800px; padding: 40px; background: white; color: black; display: none; position: fixed; left: -3000px; }
-        #pdfTable { width: 100%; border-collapse: collapse; color: black; }
-        #pdfTable th, #pdfTable td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        
+        /* PDF specific styling - only visible during export */
+        #pdf-export-container { width: 700px; padding: 30px; background: white; color: black; position: fixed; left: -2000px; top: 0; }
+        #pdfTable { width: 100%; border-collapse: collapse; color: black; margin-top: 20px; }
+        #pdfTable th, #pdfTable td { border: 1px solid #000; padding: 8px; text-align: left; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -44,7 +53,7 @@
 <div class="container">
     <!-- LOG PAGE -->
     <div id="logPage" class="page active">
-        <h1>Log Headache</h1>
+        <h1 id="logTitle">Log Headache</h1>
         <div class="card">
             <h2>Type</h2>
             <div class="grid" id="typeGrid">
@@ -69,7 +78,8 @@
                 <button onclick="toggleMed('Eletriptan', this)">Eletriptan</button>
                 <button onclick="toggleMed('None', this)">None</button>
             </div>
-            <button class="btn-main" onclick="saveLog()">Save Status</button>
+            <button id="mainSaveBtn" class="btn-main" onclick="saveLog()">Save Status</button>
+            <button id="cancelBtn" class="btn-main" style="display:none; background:#ccc;" onclick="resetUI()">Cancel Edit</button>
         </div>
     </div>
 
@@ -82,7 +92,7 @@
     <!-- REPORT PAGE -->
     <div id="reportPage" class="page">
         <h1>Analysis</h1>
-        <div class="card"><h2>Severity Timeline</h2><canvas id="uiTimelineChart"></canvas></div>
+        <div class="card"><h2>Daily Severity</h2><canvas id="uiTimelineChart"></canvas></div>
         <div class="card"><h2>Monthly Summary</h2><canvas id="uiMonthlyChart"></canvas></div>
         <button id="pdfBtn" class="btn-main" onclick="generatePDF()">Export PDF Report</button>
     </div>
@@ -91,11 +101,12 @@
 <!-- HIDDEN PDF CONTENT -->
 <div id="pdf-export-container">
     <h1 style="color:black">Headache Clinical Report</h1>
-    <div id="pdf-space"></div>
-    <table id="pdfTable">
-        <thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDS</th></tr></thead>
-        <tbody id="pdfTableBody"></tbody>
-    </table>
+    <div id="pdf-table-wrapper">
+        <table id="pdfTable">
+            <thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDICATION</th></tr></thead>
+            <tbody id="pdfTableBody"></tbody>
+        </table>
+    </div>
 </div>
 
 <nav class="tab-bar">
@@ -105,16 +116,12 @@
 </nav>
 
 <script>
-    // Register Service Worker for Offline
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
-    }
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(()=>{}); }
 
-    // DB Setup - Using a fresh version to ensure no conflicts
-    const db = new Dexie("HeadacheTrackerDB_V7");
+    const db = new Dexie("HeadacheTrackerDB_V8");
     db.version(1).stores({ logs: '++id, date, type, sev, med' });
 
-    let currentEntry = { type: '', sev: 0, med: [] };
+    let currentEntry = { id: null, type: '', sev: 0, med: [] };
 
     function setVal(f, v, el) {
         currentEntry[f] = v;
@@ -142,25 +149,31 @@
 
     async function saveLog() {
         if (!currentEntry.type || !currentEntry.sev) return alert("Please select Type and Severity");
+        const payload = {
+            type: currentEntry.type,
+            sev: currentEntry.sev,
+            med: currentEntry.med,
+            date: currentEntry.id ? currentEntry.date : new Date()
+        };
         
         try {
-            await db.logs.add({
-                type: currentEntry.type,
-                sev: currentEntry.sev,
-                med: currentEntry.med,
-                date: new Date()
-            });
-            alert("Entry Saved!");
+            if (currentEntry.id) {
+                await db.logs.update(currentEntry.id, payload);
+            } else {
+                await db.logs.add(payload);
+            }
+            alert("Success!");
             resetUI();
             nav('historyPage', document.querySelectorAll('.tab-item')[1]);
-        } catch (e) {
-            alert("Error saving: " + e);
-        }
+        } catch (e) { alert("Save Error: " + e); }
     }
 
     function resetUI() {
-        currentEntry = { type: '', sev: 0, med: [] };
+        currentEntry = { id: null, type: '', sev: 0, med: [] };
         document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        document.getElementById('logTitle').innerText = "Log Headache";
+        document.getElementById('mainSaveBtn').innerText = "Save Status";
+        document.getElementById('cancelBtn').style.display = "none";
     }
 
     function nav(pageId, el) {
@@ -178,14 +191,40 @@
         if (logs.length === 0) { list.innerHTML = "No entries yet."; return; }
         list.innerHTML = logs.map(l => `
             <div class="history-item">
-                <div><strong>${new Date(l.date).toLocaleDateString()}</strong> - ${l.type}</div>
-                <div>S:${l.sev} <button onclick="deleteItem(${l.id})" style="color:red; background:none; font-weight:bold; margin-left:10px">✕</button></div>
+                <div class="history-row">
+                    <div><strong>${new Date(l.date).toLocaleDateString()}</strong> - ${l.type}</div>
+                    <div style="font-weight:bold; color:var(--accent)">S:${l.sev}</div>
+                </div>
+                <div class="history-meta">Meds: ${l.med.length > 0 ? l.med.join(', ') : 'None'}</div>
+                <div class="history-btns">
+                    <button class="small-btn" style="background:#b2bec3; color:white;" onclick="editItem(${l.id})">Edit</button>
+                    <button class="small-btn" style="background:#fab1a0; color:#d63031;" onclick="deleteItem(${l.id})">Delete</button>
+                </div>
             </div>
         `).join('');
     }
 
+    async function editItem(id) {
+        const item = await db.logs.get(id);
+        currentEntry = { ...item };
+        nav('logPage', document.querySelectorAll('.tab-item')[0]);
+        document.getElementById('logTitle').innerText = "Edit Entry";
+        document.getElementById('mainSaveBtn').innerText = "Update Entry";
+        document.getElementById('cancelBtn').style.display = "block";
+
+        // Pre-activate buttons
+        const highlight = (gridId, val) => {
+            document.querySelectorAll(`#${gridId} button`).forEach(b => {
+                if(b.innerText == val) b.classList.add('active');
+            });
+        };
+        highlight('typeGrid', item.type);
+        highlight('sevGrid', item.sev);
+        item.med.forEach(m => highlight('medGrid', m));
+    }
+
     async function deleteItem(id) {
-        if (confirm("Delete?")) { await db.logs.delete(id); renderHistory(); }
+        if (confirm("Delete this entry?")) { await db.logs.delete(id); renderHistory(); }
     }
 
     let charts = {};
@@ -193,7 +232,6 @@
         const logs = await db.logs.orderBy('date').toArray();
         const labels = [...new Set(logs.map(l => new Date(l.date).toLocaleDateString()))];
         
-        // Severity Chart
         const ctx1 = document.getElementById('uiTimelineChart').getContext('2d');
         if (charts.ui1) charts.ui1.destroy();
         charts.ui1 = new Chart(ctx1, {
@@ -208,7 +246,6 @@
             options: { scales: { y: { min: 0, max: 5, ticks: { stepSize: 1 } } } }
         });
 
-        // Monthly Summary
         const summary = {};
         logs.forEach(l => {
             const m = new Date(l.date).toLocaleString('default', { month: 'short', year: 'numeric' });
@@ -226,38 +263,55 @@
                     { label: 'Migraine', data: mLabels.map(l => summary[l].Migraine), backgroundColor: '#0984e3' },
                     { label: 'Tension', data: mLabels.map(l => summary[l].Tension), backgroundColor: '#e67e22' }
                 ]
-            }
+            },
+            options: { scales: { y: { ticks: { stepSize: 1 } } } }
         });
     }
 
     async function generatePDF() {
         const btn = document.getElementById('pdfBtn');
-        btn.innerText = "Generating...";
-        const logs = await db.logs.orderBy('date').reverse().toArray();
-        
-        document.getElementById('pdfTableBody').innerHTML = logs.map(l => `
-            <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
-        `).join('');
+        btn.innerText = "Generating PDF...";
+        btn.disabled = true;
 
-        const timeImg = document.getElementById('uiTimelineChart').toDataURL('image/png');
-        const monthImg = document.getElementById('uiMonthlyChart').toDataURL('image/png');
+        try {
+            const logs = await db.logs.orderBy('date').reverse().toArray();
+            document.getElementById('pdfTableBody').innerHTML = logs.map(l => `
+                <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
+            `).join('');
 
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        
-        doc.setFontSize(18);
-        doc.text("Headache Clinical Report", 20, 20);
-        doc.addImage(timeImg, 'PNG', 15, 30, 180, 70);
-        doc.addImage(monthImg, 'PNG', 15, 110, 180, 70);
-        
-        doc.addPage();
-        doc.text("Full History Data", 20, 20);
-        const tableArea = document.getElementById('pdfTable');
-        const canvas = await html2canvas(tableArea);
-        doc.addImage(canvas.toDataURL('image/png'), 'PNG', 15, 30, 180, 0);
-        
-        doc.save("Headache_Report.pdf");
-        btn.innerText = "Export PDF Report";
+            const timeImg = document.getElementById('uiTimelineChart').toDataURL('image/png');
+            const monthImg = document.getElementById('uiMonthlyChart').toDataURL('image/png');
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Header & Charts
+            doc.setFontSize(18);
+            doc.text("Headache Clinical Report", 20, 20);
+            doc.addImage(timeImg, 'PNG', 15, 30, 180, 75);
+            doc.addImage(monthImg, 'PNG', 15, 115, 180, 75);
+            
+            // Table Page
+            doc.addPage();
+            doc.setFontSize(14);
+            doc.text("Full History Logs", 20, 20);
+            
+            const tableArea = document.getElementById('pdfTable');
+            const canvas = await html2canvas(tableArea, { scale: 2 });
+            const tableImg = canvas.toDataURL('image/png');
+            
+            // Calculate height to maintain ratio
+            const imgWidth = 180;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            doc.addImage(tableImg, 'PNG', 15, 30, imgWidth, imgHeight);
+            
+            doc.save(`Headache_Report_${new Date().toISOString().slice(0,10)}.pdf`);
+        } catch (e) {
+            alert("PDF Error: " + e);
+        } finally {
+            btn.innerText = "Export PDF Report";
+            btn.disabled = false;
+        }
     }
 </script>
 </body>
