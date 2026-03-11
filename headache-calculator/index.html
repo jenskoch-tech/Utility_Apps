@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0984e3">
+
+<title>HeadacheTrack Pro</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon.png">
+
+<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+:root { --bg:#f4f7f6; --card:#fff; --primary:#2d3436; --accent:#0984e3; --tension:#e67e22; --text:#2d3436; }
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#1a1a1a; --card:#2d2d2d; --primary:#f0f0f0; --accent:#74b9ff; --tension:#ffb142; --text:#f0f0f0; }
+}
+body { font-family:-apple-system,system-ui; background:var(--bg); color:var(--text); margin:0; padding-bottom:100px; }
+.container { padding:20px; max-width:600px; margin:auto; }
+.card { background:var(--card); padding:20px; border-radius:18px; box-shadow:0 8px 15px rgba(0,0,0,0.05); margin-bottom:20px; }
+h1 { font-size:1.5rem; }
+h2 { font-size:0.9rem; margin-bottom:12px; opacity:0.7; text-transform:uppercase; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(95px,1fr)); gap:10px; margin-bottom:20px; }
+button { border:none; padding:14px 8px; border-radius:12px; background:#dfe6e9; color:#2d3436; font-weight:700; cursor:pointer; transition:0.2s; font-size:0.85rem; }
+button.active { transform: scale(0.96); font-weight: bold; }
+.btn-main { background:var(--accent); color:white; width:100%; font-size:1.1rem; padding:18px; border-radius:15px; border:none; font-weight:bold; margin-bottom:10px; }
+.btn-main.cancel { background:#b2bec3; }
+.btn-tension.active { background:var(--tension); color:white; }
+.history-item { display:flex; justify-content:space-between; align-items:center; padding:15px 0; border-bottom:1px solid rgba(0,0,0,0.1); }
+.history-btns { display:flex; gap:8px; }
+.edit-btn { background:#b2bec3; color:white; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; }
+.del-btn { background:#fab1a0; color:#d63031; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; }
+.tab-bar { position:fixed; bottom:0; width:100%; background:var(--card); display:flex; border-top:1px solid rgba(0,0,0,0.1); padding-bottom:30px; }
+.tab-item { flex:1; text-align:center; padding:15px; font-size:0.9rem; opacity:0.4; font-weight:bold; cursor:pointer; }
+.tab-item.active { opacity:1; color:var(--accent); }
+.page { display:none; }
+.page.active { display:block; }
+#pdf-report-area { position:fixed; top:0; left:-2000px; width:800px; background:white; color:black; padding:40px; z-index:-1; }
+table { width:100%; border-collapse:collapse; margin-top:20px; }
+th, td { border:1px solid #ddd; padding:10px; text-align:left; font-size:12px; color:black; }
+th { background:#f2f2f2; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<!-- TAB 1: LOG -->
+<div id="logPage" class="page active">
+<h1 id="logTitle">Log Headache</h1>
+<div class="card">
+<h2>Type</h2>
+<div class="grid" id="typeGrid">
+  <button onclick="setVal('type','Migraine',this)" class="btn-migraine">Migraine</button>
+  <button onclick="setVal('type','Tension',this)" class="btn-tension">Tension</button>
+</div>
+
+<h2>Severity (1-5)</h2>
+<div class="grid" id="sevGrid">
+  <button onclick="setVal('sev',1,this)">1</button>
+  <button onclick="setVal('sev',2,this)">2</button>
+  <button onclick="setVal('sev',3,this)">3</button>
+  <button onclick="setVal('sev',4,this)">4</button>
+  <button onclick="setVal('sev',5,this)">5</button>
+</div>
+
+<h2>Medication</h2>
+<div class="grid" id="medGrid">
+  <button onclick="toggleMed('Zomig',this)">Zomig</button>
+  <button onclick="toggleMed('Solpadeine',this)">Solpadeine</button>
+  <button onclick="toggleMed('Paracetamol',this)">Paracetamol</button>
+  <button onclick="toggleMed('Medocalm',this)">Medocalm</button>
+  <button onclick="toggleMed('Temesta',this)">Temesta</button>
+  <button onclick="toggleMed('Eletriptan',this)">Eletriptan</button>
+  <button onclick="toggleMed('None',this)">None</button>
+</div>
+
+<button id="mainSaveBtn" class="btn-main" onclick="saveLog()">Save Status</button>
+<button id="cancelEditBtn" class="btn-main cancel" style="display:none;" onclick="resetForm()">Cancel Edit</button>
+</div>
+</div>
+
+<!-- TAB 2: HISTORY -->
+<div id="historyPage" class="page">
+<h1>History</h1>
+<div class="card" id="historyList">Loading...</div>
+</div>
+
+<!-- TAB 3: REPORT -->
+<div id="reportPage" class="page">
+<h1>Analysis</h1>
+<div class="card">
+<h2>Monthly Totals</h2>
+<canvas id="uiMonthlyChart"></canvas>
+</div>
+<div class="card">
+<h2>All Entries</h2>
+<table id="reportTable">
+<thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDICATION</th></tr></thead>
+<tbody id="reportTableBody"></tbody>
+</table>
+</div>
+<button id="pdfBtn" class="btn-main" onclick="generatePDF()">Export PDF Report</button>
+</div>
+
+</div>
+
+<!-- HIDDEN PDF CONTENT -->
+<div id="pdf-report-area">
+<h1 style="color:black; margin-bottom:20px;">Headache Clinical Report</h1>
+<div style="height:300px; margin-bottom:30px;"><canvas id="pdfMonthlyChart"></canvas></div>
+<table id="pdfTable">
+<thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDICATION</th></tr></thead>
+<tbody id="pdfTableBody"></tbody>
+</table>
+</div>
+
+<!-- NAV -->
+<nav class="tab-bar">
+<div class="tab-item active" onclick="nav('logPage',this)">Log</div>
+<div class="tab-item" onclick="nav('historyPage',this)">History</div>
+<div class="tab-item" onclick="nav('reportPage',this)">Report</div>
+</nav>
+
+<script>
+/* DATABASE */
+const db = new Dexie("HeadacheTrackerDB_V7");
+db.version(1).stores({ logs:'++id,date,type,sev,med' });
+
+let entry={id:null,type:'',sev:0,med:[]};
+let charts={};
+
+/* FORM UX */
+function setVal(f,v,el){
+  entry[f]=v;
+  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleMed(v,el){
+  if(v==='None'){
+    entry.med=['None'];
+    el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    el.classList.add('active');
+    return;
+  }
+  entry.med=entry.med.filter(m=>'None'!==m);
+  document.querySelector('#medGrid button:contains("None")')?.classList.remove('active');
+  if(entry.med.includes(v)){
+    entry.med=entry.med.filter(m=>m!==v);
+    el.classList.remove('active');
+  }else{
+    entry.med.push(v);
+    el.classList.add('active');
+  }
+}
+
+/* SAVE LOG */
+async function saveLog(){
+  if(!entry.type || !entry.sev){ alert("Select Type and Severity"); return; }
+  const data={...entry, date:entry.id?entry.date:new Date()};
+  if(entry.id){ await db.logs.put(data); alert("Updated!"); }
+  else { delete data.id; await db.logs.add(data); alert("Saved!"); }
+  resetForm();
+  renderHistory();
+}
+
+/* RESET FORM */
+function resetForm(){
+  entry={id:null,type:'',sev:0,med:[]};
+  document.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('logTitle').innerText="Log Headache";
+  document.getElementById('mainSaveBtn').innerText="Save Status";
+  document.getElementById('cancelEditBtn').style.display="none";
+}
+
+/* NAVIGATION */
+function nav(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(el) el.classList.add('active');
+  if(id==='historyPage') renderHistory();
+  if(id==='reportPage') renderReport();
+}
+
+/* HISTORY */
+async function renderHistory(){
+  const logs = await db.logs.orderBy('date').reverse().toArray();
+  const container = document.getElementById('historyList');
+  if(!logs.length){ container.innerHTML="<p>No entries yet.</p>"; return; }
+  container.innerHTML=logs.map(l=>`
+    <div class="history-item">
+      <div style="flex:1">
+        <strong>${new Date(l.date).toLocaleDateString()}</strong> - ${l.type}<br>
+        <small>Meds: ${l.med.join(', ')}</small>
+      </div>
+      <div style="font-weight:bold; padding:0 15px">S:${l.sev}</div>
+      <div class="history-btns">
+        <button class="edit-btn" onclick="editEntry(${l.id})">Edit</button>
+        <button class="del-btn" onclick="deleteEntry(${l.id})">Del</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function deleteEntry(id){ if(confirm("Delete this entry?")){ await db.logs.delete(parseInt(id)); renderHistory(); } }
+
+async function editEntry(id){
+  const item=await db.logs.get(parseInt(id));
+  entry={...item};
+  nav('logPage',document.querySelectorAll('.tab-item')[0]);
+  document.getElementById('logTitle').innerText="Edit Entry";
+  document.getElementById('mainSaveBtn').innerText="Update Entry";
+  document.getElementById('cancelEditBtn').style.display="block";
+  document.querySelectorAll(`#typeGrid button`).forEach(b=>{if(b.innerText==item.type)b.classList.add('active');});
+  document.querySelectorAll(`#sevGrid button`).forEach(b=>{if(b.innerText==item.sev)b.classList.add('active');});
+  item.med.forEach(m=>document.querySelectorAll(`#medGrid button`).forEach(b=>{if(b.innerText==m)b.classList.add('active');}));
+}
+
+/* REPORT */
+async function renderReport(){
+  const logs = await db.logs.orderBy('date').toArray();
+  // Monthly chart
+  const summary={};
+  logs.forEach(l=>{
+    const m=new Date(l.date).toLocaleString('default',{month:'short',year:'numeric'});
+    if(!summary[m]) summary[m]={Migraine:0,Tension:0};
+    summary[m][l.type]++;
+  });
+  const labels=Object.keys(summary);
+  const ctx=document.getElementById('uiMonthlyChart').getContext('2d');
+  if(charts.uiMonthlyChart) charts.uiMonthlyChart.destroy();
+  charts.uiMonthlyChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Migraines', data:labels.map(l=>summary[l].Migraine), backgroundColor:'#0984e3' },
+        { label:'Tension', data:labels.map(l=>summary[l].Tension), backgroundColor:'#e67e22' }
+      ]
+    },
+    options:{ scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+  });
+  // Table
+  document.getElementById('reportTableBody').innerHTML=logs.map(l=>`
+    <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
+  `).join('');
+}
+
+/* PDF */
+async function generatePDF(){
+  const btn=document.getElementById('pdfBtn');
+  btn.innerText="Generating...";
+  const logs=await db.logs.orderBy('date').reverse().toArray();
+  document.getElementById('pdfTableBody').innerHTML=logs.map(l=>`
+    <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
+  `).join('');
+  // Monthly chart for PDF
+  const summary={};
+  logs.forEach(l=>{
+    const m=new Date(l.date).toLocaleString('default',{month:'short',year:'numeric'});
+    if(!summary[m]) summary[m]={Migraine:0,Tension:0};
+    summary[m][l.type]++;
+  });
+  const labels=Object.keys(summary);
+  const ctx=document.getElementById('pdfMonthlyChart').getContext('2d');
+  if(charts.pdfMonthlyChart) charts.pdfMonthlyChart.destroy();
+  charts.pdfMonthlyChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Migraines', data:labels.map(l=>summary[l].Migraine), backgroundColor:'#0984e3' },
+        { label:'Tension', data:labels.map(l=>summary[l].Tension), backgroundColor:'#e67e22' }
+      ]
+    },
+    options:{ animation:false, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+  });
+  setTimeout(async()=>{
+    const area=document.getElementById('pdf-report-area');
+    const canvas=await html2canvas(area,{scale:2,useCORS:true,logging:false});
+    const imgData=canvas.toDataURL('image/png');
+    const { jsPDF }=window.jspdf;
+    const doc=new jsPDF('p','mm','a4');
+    const imgProps=doc.getImageProperties(imgData);
+    const pdfWidth=doc.internal.pageSize.getWidth();
+    const pdfHeight=(imgProps.height*pdfWidth)/imgProps.width;
+    doc.addImage(imgData,'PNG',0,0,pdfWidth,pdfHeight);
+    doc.save("Headache_Clinical_Report.pdf");
+    btn.innerText="Export PDF Report";
+  },600);
+}
+
+/* SERVICE WORKER */
+if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js"); }
+</script>
+
+</body>
+</html>
