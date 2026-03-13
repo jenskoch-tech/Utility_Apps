@@ -1,306 +1,1025 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0984e3">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0984e3">
+  <title>HeadacheTrack Pro</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.png">
+  <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-<title>HeadacheTrack Pro</title>
+  <style>
+    :root {
+      --bg: #f0f4f8;
+      --card: #ffffff;
+      --primary: #1a202c;
+      --accent: #0984e3;
+      --accent-light: #e8f4fd;
+      --tension: #e67e22;
+      --tension-light: #fef3e8;
+      --migraine: #0984e3;
+      --migraine-light: #e8f4fd;
+      --text: #1a202c;
+      --text-muted: #718096;
+      --border: rgba(0,0,0,0.08);
+      --sev1: #48bb78;
+      --sev2: #68d391;
+      --sev3: #f6ad55;
+      --sev4: #fc8181;
+      --sev5: #e53e3e;
+      --shadow: 0 2px 12px rgba(0,0,0,0.07);
+      --radius: 16px;
+      --tab-height: 80px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1117;
+        --card: #1a1d27;
+        --primary: #f0f0f0;
+        --accent: #4da6ff;
+        --accent-light: #1a2a3a;
+        --tension: #ffb142;
+        --tension-light: #2a1f10;
+        --text: #e8ecf0;
+        --text-muted: #8899aa;
+        --border: rgba(255,255,255,0.08);
+        --shadow: 0 2px 12px rgba(0,0,0,0.3);
+      }
+    }
 
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon.png">
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding-bottom: calc(var(--tab-height) + 10px);
+      min-height: 100vh;
+    }
 
-<style>
-:root { --bg:#f4f7f6; --card:#fff; --primary:#2d3436; --accent:#0984e3; --tension:#e67e22; --text:#2d3436; }
-@media (prefers-color-scheme: dark) {
-  :root { --bg:#1a1a1a; --card:#2d2d2d; --primary:#f0f0f0; --accent:#74b9ff; --tension:#ffb142; --text:#f0f0f0; }
-}
-body { font-family:-apple-system,system-ui; background:var(--bg); color:var(--text); margin:0; padding-bottom:100px; }
-.container { padding:20px; max-width:600px; margin:auto; }
-.card { background:var(--card); padding:20px; border-radius:18px; box-shadow:0 8px 15px rgba(0,0,0,0.05); margin-bottom:20px; }
-h1 { font-size:1.5rem; }
-h2 { font-size:0.9rem; margin-bottom:12px; opacity:0.7; text-transform:uppercase; }
-.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(95px,1fr)); gap:10px; margin-bottom:20px; }
-button { border:none; padding:14px 8px; border-radius:12px; background:#dfe6e9; color:#2d3436; font-weight:700; cursor:pointer; transition:0.2s; font-size:0.85rem; }
-button.active { transform: scale(0.96); font-weight: bold; }
-.btn-main { background:var(--accent); color:white; width:100%; font-size:1.1rem; padding:18px; border-radius:15px; border:none; font-weight:bold; margin-bottom:10px; }
-.btn-main.cancel { background:#b2bec3; }
-.btn-tension.active { background:var(--tension); color:white; }
-.history-item { display:flex; justify-content:space-between; align-items:center; padding:15px 0; border-bottom:1px solid rgba(0,0,0,0.1); }
-.history-btns { display:flex; gap:8px; }
-.edit-btn { background:#b2bec3; color:white; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; }
-.del-btn { background:#fab1a0; color:#d63031; padding:8px; border-radius:8px; font-size:11px; font-weight:bold; }
-.tab-bar { position:fixed; bottom:0; width:100%; background:var(--card); display:flex; border-top:1px solid rgba(0,0,0,0.1); padding-bottom:30px; }
-.tab-item { flex:1; text-align:center; padding:15px; font-size:0.9rem; opacity:0.4; font-weight:bold; cursor:pointer; }
-.tab-item.active { opacity:1; color:var(--accent); }
-.page { display:none; }
-.page.active { display:block; }
-#pdf-report-area { position:fixed; top:0; left:-2000px; width:800px; background:white; color:black; padding:40px; z-index:-1; }
-table { width:100%; border-collapse:collapse; margin-top:20px; }
-th, td { border:1px solid #ddd; padding:10px; text-align:left; font-size:12px; color:black; }
-th { background:#f2f2f2; }
-</style>
+    .container {
+      padding: 20px 16px;
+      max-width: 560px;
+      margin: auto;
+    }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--card);
+      padding: 20px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── HEADINGS ── */
+    .page-title {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin: 0 0 20px 0;
+      letter-spacing: -0.5px;
+    }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin: 0 0 10px 0;
+    }
+
+    /* ── TYPE BUTTONS ── */
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .type-btn {
+      border: 2px solid var(--border);
+      padding: 14px 6px;
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--text);
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 0.82rem;
+      text-align: center;
+    }
+    .type-btn:active { transform: scale(0.97); }
+    .type-btn.active-migraine {
+      background: var(--migraine-light);
+      border-color: var(--migraine);
+      color: var(--migraine);
+    }
+    .type-btn.active-tension {
+      background: var(--tension-light);
+      border-color: var(--tension);
+      color: var(--tension);
+    }
+    .type-btn.active-cluster {
+      background: #f3e8ff;
+      border-color: #805ad5;
+      color: #805ad5;
+    }
+    .type-btn.active-other {
+      background: #e6fffa;
+      border-color: #319795;
+      color: #319795;
+    }
+    @media (prefers-color-scheme: dark) {
+      .type-btn.active-cluster { background: #2d1f45; border-color: #b794f4; color: #b794f4; }
+      .type-btn.active-other   { background: #1a2e2e; border-color: #4fd1c5; color: #4fd1c5; }
+    }
+
+    /* ── SEVERITY ── */
+    .sev-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .sev-btn {
+      border: 2px solid var(--border);
+      padding: 14px 4px;
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--text);
+      font-weight: 800;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-align: center;
+    }
+    .sev-btn:active { transform: scale(0.95); }
+    .sev-btn.active[data-sev="1"] { background: var(--sev1); border-color: var(--sev1); color: white; }
+    .sev-btn.active[data-sev="2"] { background: var(--sev2); border-color: var(--sev2); color: white; }
+    .sev-btn.active[data-sev="3"] { background: var(--sev3); border-color: var(--sev3); color: #333; }
+    .sev-btn.active[data-sev="4"] { background: var(--sev4); border-color: var(--sev4); color: white; }
+    .sev-btn.active[data-sev="5"] { background: var(--sev5); border-color: var(--sev5); color: white; }
+
+    /* ── MED GRID ── */
+    .med-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .med-btn {
+      border: 2px solid var(--border);
+      padding: 10px 14px;
+      border-radius: 24px;
+      background: var(--card);
+      color: var(--text);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-size: 0.85rem;
+      white-space: nowrap;
+    }
+    .med-btn:active { transform: scale(0.95); }
+    .med-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+    .med-btn.active-none {
+      background: var(--text-muted);
+      border-color: var(--text-muted);
+      color: white;
+    }
+
+    /* ── INPUTS ── */
+    .input-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .input-group.full { grid-column: 1 / -1; }
+    input[type="time"],
+    input[type="number"],
+    textarea,
+    select {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 11px 12px;
+      color: var(--text);
+      font-size: 0.95rem;
+      font-family: inherit;
+      width: 100%;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent);
+    }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* ── MAIN BUTTONS ── */
+    .btn-save {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+      font-size: 1rem;
+      padding: 17px;
+      border-radius: 14px;
+      border: none;
+      font-weight: 700;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      letter-spacing: 0.02em;
+    }
+    .btn-save:active { transform: scale(0.98); opacity: 0.9; }
+    .btn-cancel {
+      background: transparent;
+      color: var(--text-muted);
+      width: 100%;
+      font-size: 0.95rem;
+      padding: 14px;
+      border-radius: 14px;
+      border: 2px solid var(--border);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-cancel:active { transform: scale(0.98); }
+
+    /* ── STATS CARDS ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .stat-card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px 12px;
+      text-align: center;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .stat-num {
+      font-size: 1.8rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── HISTORY ── */
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .history-item:last-child { border-bottom: none; }
+    .sev-dot {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      flex-shrink: 0;
+    }
+    .sev-dot.s1 { background: var(--sev1); }
+    .sev-dot.s2 { background: var(--sev2); }
+    .sev-dot.s3 { background: var(--sev3); color: #333; }
+    .sev-dot.s4 { background: var(--sev4); }
+    .sev-dot.s5 { background: var(--sev5); }
+
+    .history-info { flex: 1; min-width: 0; }
+    .history-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .history-date { font-weight: 700; font-size: 0.9rem; }
+    .type-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .type-badge.migraine { background: var(--migraine-light); color: var(--migraine); }
+    .type-badge.tension  { background: var(--tension-light); color: var(--tension); }
+    .type-badge.cluster  { background: #f3e8ff; color: #805ad5; }
+    .type-badge.other    { background: #e6fffa; color: #319795; }
+    @media (prefers-color-scheme: dark) {
+      .type-badge.cluster { background: #2d1f45; color: #b794f4; }
+      .type-badge.other   { background: #1a2e2e; color: #4fd1c5; }
+    }
+    .history-sub { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .history-btns { display: flex; gap: 6px; flex-shrink: 0; }
+    .edit-btn {
+      background: var(--bg);
+      color: var(--text-muted);
+      border: 1.5px solid var(--border);
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .del-btn {
+      background: #fff0ef;
+      color: #e53e3e;
+      border: 1.5px solid #fed7d7;
+      padding: 7px 11px;
+      border-radius: 8px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    @media (prefers-color-scheme: dark) {
+      .del-btn { background: #2d1515; border-color: #5a2020; }
+      .edit-btn { background: var(--card); }
+    }
+
+    /* ── REPORT ── */
+    .chart-wrap { position: relative; height: 200px; }
+    .report-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: 4px; }
+    .report-table th {
+      text-align: left;
+      padding: 8px 10px;
+      color: var(--text-muted);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    .report-table td {
+      padding: 10px 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .report-table tr:last-child td { border-bottom: none; }
+    .btn-export {
+      background: var(--accent);
+      color: white;
+      width: 100%;
+      font-size: 1rem;
+      padding: 17px;
+      border-radius: 14px;
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-export:active { transform: scale(0.98); opacity: 0.9; }
+    .btn-export:disabled { opacity: 0.5; cursor: default; }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { margin: 0; font-size: 0.9rem; }
+
+    /* ── TAB BAR ── */
+    .tab-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: 100%;
+      background: var(--card);
+      display: flex;
+      border-top: 1px solid var(--border);
+      padding-bottom: env(safe-area-inset-bottom, 10px);
+      z-index: 100;
+      box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+    }
+    .tab-item {
+      flex: 1;
+      text-align: center;
+      padding: 12px 4px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      opacity: 0.4;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .tab-item .tab-icon { font-size: 1.3rem; }
+    .tab-item.active { opacity: 1; color: var(--accent); }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── PDF AREA ── */
+    #pdf-report-area {
+      position: fixed;
+      top: 0;
+      left: -9999px;
+      width: 800px;
+      background: white;
+      color: black;
+      padding: 40px;
+      z-index: -1;
+    }
+    #pdf-report-area table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    #pdf-report-area th, #pdf-report-area td { border: 1px solid #ddd; padding: 10px; text-align: left; font-size: 12px; color: black; }
+    #pdf-report-area th { background: #f2f2f2; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed;
+      bottom: calc(var(--tab-height) + 16px);
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1a202c;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      opacity: 0;
+      transition: all 0.25s ease;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 200;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
 </head>
 <body>
 
+<div id="toast"></div>
+
 <div class="container">
 
-<!-- TAB 1: LOG -->
-<div id="logPage" class="page active">
-<h1 id="logTitle">Log Headache</h1>
-<div class="card">
-<h2>Type</h2>
-<div class="grid" id="typeGrid">
-  <button onclick="setVal('type','Migraine',this)" class="btn-migraine">Migraine</button>
-  <button onclick="setVal('type','Tension',this)" class="btn-tension">Tension</button>
-</div>
+  <!-- ── PAGE: LOG ── -->
+  <div id="logPage" class="page active">
+    <h1 class="page-title" id="logTitle">Log Headache</h1>
 
-<h2>Severity (1-5)</h2>
-<div class="grid" id="sevGrid">
-  <button onclick="setVal('sev',1,this)">1</button>
-  <button onclick="setVal('sev',2,this)">2</button>
-  <button onclick="setVal('sev',3,this)">3</button>
-  <button onclick="setVal('sev',4,this)">4</button>
-  <button onclick="setVal('sev',5,this)">5</button>
-</div>
+    <div class="card">
+      <p class="section-label">Type</p>
+      <div class="type-grid">
+        <button class="type-btn" id="typeMigraine" onclick="setType('Migraine')">Migraine</button>
+        <button class="type-btn" id="typeTension" onclick="setType('Tension')">Tension</button>
+        <button class="type-btn" id="typeCluster" onclick="setType('Cluster')">Cluster</button>
+        <button class="type-btn" id="typeOther" onclick="setType('Other')">Other</button>
+      </div>
 
-<h2>Medication</h2>
-<div class="grid" id="medGrid">
-  <button onclick="toggleMed('Zomig',this)">Zomig</button>
-  <button onclick="toggleMed('Solpadeine',this)">Solpadeine</button>
-  <button onclick="toggleMed('Paracetamol',this)">Paracetamol</button>
-  <button onclick="toggleMed('Medocalm',this)">Medocalm</button>
-  <button onclick="toggleMed('Temesta',this)">Temesta</button>
-  <button onclick="toggleMed('Eletriptan',this)">Eletriptan</button>
-  <button onclick="toggleMed('None',this)">None</button>
-</div>
+      <p class="section-label">Severity</p>
+      <div class="sev-grid">
+        <button class="sev-btn" data-sev="1" onclick="setSev(1,this)">1</button>
+        <button class="sev-btn" data-sev="2" onclick="setSev(2,this)">2</button>
+        <button class="sev-btn" data-sev="3" onclick="setSev(3,this)">3</button>
+        <button class="sev-btn" data-sev="4" onclick="setSev(4,this)">4</button>
+        <button class="sev-btn" data-sev="5" onclick="setSev(5,this)">5</button>
+      </div>
 
-<button id="mainSaveBtn" class="btn-main" onclick="saveLog()">Save Status</button>
-<button id="cancelEditBtn" class="btn-main cancel" style="display:none;" onclick="resetForm()">Cancel Edit</button>
-</div>
-</div>
+      <p class="section-label">Medication Taken</p>
+      <div class="med-grid" id="medGrid">
+        <button class="med-btn" onclick="toggleMed('Zomig',this)">Zomig</button>
+        <button class="med-btn" onclick="toggleMed('Solpadeine',this)">Solpadeine</button>
+        <button class="med-btn" onclick="toggleMed('Paracetamol',this)">Paracetamol</button>
+        <button class="med-btn" onclick="toggleMed('Medocalm',this)">Medocalm</button>
+        <button class="med-btn" onclick="toggleMed('Temesta',this)">Temesta</button>
+        <button class="med-btn" onclick="toggleMed('Eletriptan',this)">Eletriptan</button>
+        <button class="med-btn" id="noneBtn" onclick="toggleMed('None',this)">None</button>
+      </div>
 
-<!-- TAB 2: HISTORY -->
-<div id="historyPage" class="page">
-<h1>History</h1>
-<div class="card" id="historyList">Loading...</div>
-</div>
+      <p class="section-label">Details</p>
+      <div class="input-row">
+        <div class="input-group">
+          <label class="section-label" style="margin:0">Time</label>
+          <input type="time" id="timeInput" />
+        </div>
+        <div class="input-group">
+          <label class="section-label" style="margin:0">Duration (hrs)</label>
+          <input type="number" id="durationInput" min="0" max="72" step="0.5" placeholder="e.g. 4" />
+        </div>
+        <div class="input-group full">
+          <label class="section-label" style="margin:0">Notes / Triggers</label>
+          <textarea id="notesInput" placeholder="e.g. stress, poor sleep, bright lights..."></textarea>
+        </div>
+      </div>
 
-<!-- TAB 3: REPORT -->
-<div id="reportPage" class="page">
-<h1>Analysis</h1>
-<div class="card">
-<h2>Monthly Totals</h2>
-<canvas id="uiMonthlyChart"></canvas>
-</div>
-<div class="card">
-<h2>All Entries</h2>
-<table id="reportTable">
-<thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDICATION</th></tr></thead>
-<tbody id="reportTableBody"></tbody>
-</table>
-</div>
-<button id="pdfBtn" class="btn-main" onclick="generatePDF()">Export PDF Report</button>
-</div>
+      <button id="mainSaveBtn" class="btn-save" onclick="saveLog()">Save Entry</button>
+      <button id="cancelEditBtn" class="btn-cancel" style="display:none;" onclick="resetForm()">Cancel Edit</button>
+    </div>
+  </div>
 
-</div>
+  <!-- ── PAGE: HISTORY ── -->
+  <div id="historyPage" class="page">
+    <h1 class="page-title">History</h1>
+    <div class="card" id="historyList">
+      <div class="empty-state"><div class="empty-icon">📋</div><p>No entries yet.</p></div>
+    </div>
+  </div>
 
-<!-- HIDDEN PDF CONTENT -->
+  <!-- ── PAGE: REPORT ── -->
+  <div id="reportPage" class="page">
+    <h1 class="page-title">Analysis</h1>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-num" id="statThisMonth">—</div>
+        <div class="stat-label">This Month</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statAvgSev">—</div>
+        <div class="stat-label">Avg Severity</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" id="statTotal">—</div>
+        <div class="stat-label">All Time</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="section-label">Monthly Breakdown</p>
+      <div class="chart-wrap"><canvas id="uiMonthlyChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <p class="section-label">Most Used Medications</p>
+      <div class="chart-wrap"><canvas id="uiMedChart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <p class="section-label">All Entries</p>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Sev</th>
+            <th>Medication</th>
+          </tr>
+        </thead>
+        <tbody id="reportTableBody"></tbody>
+      </table>
+    </div>
+
+    <button class="btn-export" id="pdfBtn" onclick="generatePDF()">📄 Export PDF Report</button>
+  </div>
+
+</div><!-- /container -->
+
+<!-- HIDDEN PDF AREA -->
 <div id="pdf-report-area">
-<h1 style="color:black; margin-bottom:20px;">Headache Clinical Report</h1>
-<div style="height:300px; margin-bottom:30px;"><canvas id="pdfMonthlyChart"></canvas></div>
-<table id="pdfTable">
-<thead><tr><th>DATE</th><th>TYPE</th><th>SEV</th><th>MEDICATION</th></tr></thead>
-<tbody id="pdfTableBody"></tbody>
-</table>
+  <h1 style="color:black; margin-bottom:6px;">Headache Clinical Report</h1>
+  <p style="color:#555; font-size:13px; margin-bottom:20px;">Generated: <span id="pdfDate"></span></p>
+  <div style="height:260px; margin-bottom:30px;"><canvas id="pdfMonthlyChart"></canvas></div>
+  <table id="pdfTable">
+    <thead><tr><th>DATE</th><th>TIME</th><th>TYPE</th><th>SEV</th><th>DURATION</th><th>MEDICATION</th><th>NOTES</th></tr></thead>
+    <tbody id="pdfTableBody"></tbody>
+  </table>
 </div>
 
-<!-- NAV -->
+<!-- TAB BAR -->
 <nav class="tab-bar">
-<div class="tab-item active" onclick="nav('logPage',this)">Log</div>
-<div class="tab-item" onclick="nav('historyPage',this)">History</div>
-<div class="tab-item" onclick="nav('reportPage',this)">Report</div>
+  <div class="tab-item active" id="tab-log" onclick="nav('logPage','tab-log')">
+    <span class="tab-icon">✏️</span> Log
+  </div>
+  <div class="tab-item" id="tab-history" onclick="nav('historyPage','tab-history')">
+    <span class="tab-icon">📋</span> History
+  </div>
+  <div class="tab-item" id="tab-report" onclick="nav('reportPage','tab-report')">
+    <span class="tab-icon">📊</span> Report
+  </div>
 </nav>
 
 <script>
-/* DATABASE */
-const db = new Dexie("HeadacheTrackerDB_V7");
-db.version(1).stores({ logs:'++id,date,type,sev,med' });
+/* ══════════════════════════════
+   DATABASE
+══════════════════════════════ */
+const db = new Dexie("HeadacheTrackerDB_V8");
+db.version(1).stores({ logs: '++id,date,type,sev,med,time,duration,notes' });
 
-let entry={id:null,type:'',sev:0,med:[]};
-let charts={};
+let entry = { id: null, type: '', sev: 0, med: [] };
+let charts = {};
 
-/* FORM UX */
-function setVal(f,v,el){
-  entry[f]=v;
-  el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+/* ══════════════════════════════
+   TOAST
+══════════════════════════════ */
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+/* ══════════════════════════════
+   FORM HELPERS
+══════════════════════════════ */
+function setType(type) {
+  entry.type = type;
+  document.getElementById('typeMigraine').className = 'type-btn' + (type === 'Migraine' ? ' active-migraine' : '');
+  document.getElementById('typeTension').className  = 'type-btn' + (type === 'Tension'  ? ' active-tension'  : '');
+  document.getElementById('typeCluster').className  = 'type-btn' + (type === 'Cluster'  ? ' active-cluster'  : '');
+  document.getElementById('typeOther').className    = 'type-btn' + (type === 'Other'    ? ' active-other'    : '');
+}
+
+function setSev(v, el) {
+  entry.sev = v;
+  document.querySelectorAll('.sev-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
 }
 
-function toggleMed(v,el){
-  if(v==='None'){
-    entry.med=['None'];
-    el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-    el.classList.add('active');
+function toggleMed(v, el) {
+  if (v === 'None') {
+    entry.med = ['None'];
+    document.querySelectorAll('.med-btn').forEach(b => {
+      b.classList.remove('active', 'active-none');
+    });
+    el.classList.add('active-none');
     return;
   }
-  entry.med=entry.med.filter(m=>'None'!==m);
-  document.querySelector('#medGrid button:contains("None")')?.classList.remove('active');
-  if(entry.med.includes(v)){
-    entry.med=entry.med.filter(m=>m!==v);
+  // Remove "None" if anything else selected
+  entry.med = entry.med.filter(m => m !== 'None');
+  document.getElementById('noneBtn').classList.remove('active', 'active-none');
+
+  if (entry.med.includes(v)) {
+    entry.med = entry.med.filter(m => m !== v);
     el.classList.remove('active');
-  }else{
+  } else {
     entry.med.push(v);
     el.classList.add('active');
   }
 }
 
-/* SAVE LOG */
-async function saveLog(){
-  if(!entry.type || !entry.sev){ alert("Select Type and Severity"); return; }
-  const data={...entry, date:entry.id?entry.date:new Date()};
-  if(entry.id){ await db.logs.put(data); alert("Updated!"); }
-  else { delete data.id; await db.logs.add(data); alert("Saved!"); }
+/* ══════════════════════════════
+   SAVE / UPDATE
+══════════════════════════════ */
+async function saveLog() {
+  if (!entry.type) { toast("⚠️ Please select a type"); return; }
+  if (!entry.sev)  { toast("⚠️ Please select a severity"); return; }
+
+  const timeVal     = document.getElementById('timeInput').value;
+  const durationVal = document.getElementById('durationInput').value;
+  const notesVal    = document.getElementById('notesInput').value.trim();
+
+  const data = {
+    ...entry,
+    date:     entry.id ? entry.date : new Date(),
+    time:     timeVal     || null,
+    duration: durationVal ? parseFloat(durationVal) : null,
+    notes:    notesVal    || null,
+  };
+
+  if (entry.id) {
+    await db.logs.put(data);
+    toast("✅ Entry updated");
+  } else {
+    delete data.id;
+    await db.logs.add(data);
+    toast("✅ Saved!");
+  }
   resetForm();
   renderHistory();
 }
 
-/* RESET FORM */
-function resetForm(){
-  entry={id:null,type:'',sev:0,med:[]};
-  document.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-  document.getElementById('logTitle').innerText="Log Headache";
-  document.getElementById('mainSaveBtn').innerText="Save Status";
-  document.getElementById('cancelEditBtn').style.display="none";
+/* ══════════════════════════════
+   RESET FORM
+══════════════════════════════ */
+function resetForm() {
+  entry = { id: null, type: '', sev: 0, med: [] };
+
+  document.getElementById('typeMigraine').className = 'type-btn';
+  document.getElementById('typeTension').className  = 'type-btn';
+  document.getElementById('typeCluster').className  = 'type-btn';
+  document.getElementById('typeOther').className    = 'type-btn';
+  document.querySelectorAll('.sev-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.med-btn').forEach(b => b.classList.remove('active', 'active-none'));
+
+  document.getElementById('timeInput').value = '';
+  document.getElementById('durationInput').value = '';
+  document.getElementById('notesInput').value = '';
+
+  document.getElementById('logTitle').innerText = 'Log Headache';
+  document.getElementById('mainSaveBtn').innerText = 'Save Entry';
+  document.getElementById('cancelEditBtn').style.display = 'none';
 }
 
-/* NAVIGATION */
-function nav(id,el){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.querySelectorAll('.tab-item').forEach(t=>t.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
-  if(el) el.classList.add('active');
-  if(id==='historyPage') renderHistory();
-  if(id==='reportPage') renderReport();
+/* ══════════════════════════════
+   NAVIGATION
+══════════════════════════════ */
+function nav(pageId, tabId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+  if (pageId === 'historyPage') renderHistory();
+  if (pageId === 'reportPage')  renderReport();
 }
 
-/* HISTORY */
-async function renderHistory(){
+/* ══════════════════════════════
+   HISTORY
+══════════════════════════════ */
+async function renderHistory() {
   const logs = await db.logs.orderBy('date').reverse().toArray();
   const container = document.getElementById('historyList');
-  if(!logs.length){ container.innerHTML="<p>No entries yet.</p>"; return; }
-  container.innerHTML=logs.map(l=>`
-    <div class="history-item">
-      <div style="flex:1">
-        <strong>${new Date(l.date).toLocaleDateString()}</strong> - ${l.type}<br>
-        <small>Meds: ${l.med.join(', ')}</small>
+
+  if (!logs.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div><p>No entries yet. Log your first headache!</p></div>';
+    return;
+  }
+
+  container.innerHTML = logs.map(l => {
+    const dateStr = new Date(l.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = l.time ? ` · ${l.time}` : '';
+    const durStr  = l.duration ? ` · ${l.duration}h` : '';
+    const medStr  = l.med && l.med.length ? l.med.join(', ') : 'None logged';
+    const typeClass = l.type === 'Migraine' ? 'migraine' : l.type === 'Tension' ? 'tension' : l.type === 'Cluster' ? 'cluster' : 'other';
+
+    return `
+      <div class="history-item">
+        <div class="sev-dot s${l.sev}">${l.sev}</div>
+        <div class="history-info">
+          <div class="history-top">
+            <span class="history-date">${dateStr}${timeStr}${durStr}</span>
+            <span class="type-badge ${typeClass}">${l.type}</span>
+          </div>
+          <div class="history-sub">${medStr}${l.notes ? ' · ' + l.notes : ''}</div>
+        </div>
+        <div class="history-btns">
+          <button class="edit-btn" onclick="editEntry(${l.id})">Edit</button>
+          <button class="del-btn" onclick="deleteEntry(${l.id})">Del</button>
+        </div>
       </div>
-      <div style="font-weight:bold; padding:0 15px">S:${l.sev}</div>
-      <div class="history-btns">
-        <button class="edit-btn" onclick="editEntry(${l.id})">Edit</button>
-        <button class="del-btn" onclick="deleteEntry(${l.id})">Del</button>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
-async function deleteEntry(id){ if(confirm("Delete this entry?")){ await db.logs.delete(parseInt(id)); renderHistory(); } }
-
-async function editEntry(id){
-  const item=await db.logs.get(parseInt(id));
-  entry={...item};
-  nav('logPage',document.querySelectorAll('.tab-item')[0]);
-  document.getElementById('logTitle').innerText="Edit Entry";
-  document.getElementById('mainSaveBtn').innerText="Update Entry";
-  document.getElementById('cancelEditBtn').style.display="block";
-  document.querySelectorAll(`#typeGrid button`).forEach(b=>{if(b.innerText==item.type)b.classList.add('active');});
-  document.querySelectorAll(`#sevGrid button`).forEach(b=>{if(b.innerText==item.sev)b.classList.add('active');});
-  item.med.forEach(m=>document.querySelectorAll(`#medGrid button`).forEach(b=>{if(b.innerText==m)b.classList.add('active');}));
+async function deleteEntry(id) {
+  if (!confirm("Delete this entry?")) return;
+  await db.logs.delete(parseInt(id));
+  renderHistory();
+  toast("🗑️ Deleted");
 }
 
-/* REPORT */
-async function renderReport(){
+async function editEntry(id) {
+  const item = await db.logs.get(parseInt(id));
+  entry = { ...item };
+
+  nav('logPage', 'tab-log');
+
+  // Restore type
+  setType(item.type);
+
+  // Restore severity
+  document.querySelectorAll('.sev-btn').forEach(b => {
+    if (parseInt(b.dataset.sev) === item.sev) b.classList.add('active');
+  });
+
+  // Restore meds
+  document.querySelectorAll('.med-btn').forEach(b => {
+    const medName = b.textContent.trim();
+    if (item.med && item.med.includes(medName)) {
+      b.classList.add(medName === 'None' ? 'active-none' : 'active');
+    }
+  });
+
+  // Restore extras
+  document.getElementById('timeInput').value     = item.time     || '';
+  document.getElementById('durationInput').value = item.duration != null ? item.duration : '';
+  document.getElementById('notesInput').value    = item.notes    || '';
+
+  document.getElementById('logTitle').innerText      = 'Edit Entry';
+  document.getElementById('mainSaveBtn').innerText   = 'Update Entry';
+  document.getElementById('cancelEditBtn').style.display = 'block';
+}
+
+/* ══════════════════════════════
+   REPORT
+══════════════════════════════ */
+async function renderReport() {
   const logs = await db.logs.orderBy('date').toArray();
-  // Monthly chart
-  const summary={};
-  logs.forEach(l=>{
-    const m=new Date(l.date).toLocaleString('default',{month:'short',year:'numeric'});
-    if(!summary[m]) summary[m]={Migraine:0,Tension:0};
-    summary[m][l.type]++;
+
+  // ── Stats cards
+  const now = new Date();
+  const thisMonth = logs.filter(l => {
+    const d = new Date(l.date);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
-  const labels=Object.keys(summary);
-  const ctx=document.getElementById('uiMonthlyChart').getContext('2d');
-  if(charts.uiMonthlyChart) charts.uiMonthlyChart.destroy();
-  charts.uiMonthlyChart=new Chart(ctx,{
-    type:'bar',
-    data:{
+  document.getElementById('statThisMonth').textContent = thisMonth.length;
+  document.getElementById('statTotal').textContent     = logs.length;
+
+  if (logs.length) {
+    const avg = logs.reduce((s, l) => s + l.sev, 0) / logs.length;
+    document.getElementById('statAvgSev').textContent = avg.toFixed(1);
+  } else {
+    document.getElementById('statAvgSev').textContent = '—';
+  }
+
+  // ── Monthly bar chart
+  const summary = {};
+  logs.forEach(l => {
+    const m = new Date(l.date).toLocaleString('default', { month: 'short', year: 'numeric' });
+    if (!summary[m]) summary[m] = { Migraine: 0, Tension: 0 };
+    summary[m][l.type] = (summary[m][l.type] || 0) + 1;
+  });
+  const labels = Object.keys(summary);
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor   = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const tickColor   = isDark ? '#8899aa' : '#718096';
+
+  const ctx1 = document.getElementById('uiMonthlyChart').getContext('2d');
+  if (charts.monthly) charts.monthly.destroy();
+  charts.monthly = new Chart(ctx1, {
+    type: 'bar',
+    data: {
       labels,
-      datasets:[
-        { label:'Migraines', data:labels.map(l=>summary[l].Migraine), backgroundColor:'#0984e3' },
-        { label:'Tension', data:labels.map(l=>summary[l].Tension), backgroundColor:'#e67e22' }
+      datasets: [
+        { label: 'Migraines', data: labels.map(l => summary[l].Migraine || 0), backgroundColor: '#0984e3', borderRadius: 4 },
+        { label: 'Tension',   data: labels.map(l => summary[l].Tension  || 0), backgroundColor: '#e67e22', borderRadius: 4 },
+        { label: 'Cluster',   data: labels.map(l => summary[l].Cluster  || 0), backgroundColor: '#805ad5', borderRadius: 4 },
+        { label: 'Other',     data: labels.map(l => summary[l].Other    || 0), backgroundColor: '#319795', borderRadius: 4 }
       ]
     },
-    options:{ scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: tickColor, font: { size: 12 } } } },
+      scales: {
+        x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+        y: { beginAtZero: true, ticks: { stepSize: 1, color: tickColor }, grid: { color: gridColor } }
+      }
+    }
   });
-  // Table
-  document.getElementById('reportTableBody').innerHTML=logs.map(l=>`
-    <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
+
+  // ── Medication doughnut chart
+  const medCounts = {};
+  logs.forEach(l => {
+    if (!l.med) return;
+    l.med.forEach(m => {
+      if (m === 'None') return;
+      medCounts[m] = (medCounts[m] || 0) + 1;
+    });
+  });
+  const medLabels = Object.keys(medCounts);
+  const medData   = Object.values(medCounts);
+  const medColors = ['#0984e3','#e67e22','#6c5ce7','#00b894','#fd79a8','#fdcb6e','#e17055'];
+
+  const ctx2 = document.getElementById('uiMedChart').getContext('2d');
+  if (charts.med) charts.med.destroy();
+
+  if (medLabels.length) {
+    charts.med = new Chart(ctx2, {
+      type: 'doughnut',
+      data: {
+        labels: medLabels,
+        datasets: [{ data: medData, backgroundColor: medColors.slice(0, medLabels.length), borderWidth: 0 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: 'right', labels: { color: tickColor, font: { size: 12 }, padding: 12 } } }
+      }
+    });
+  } else {
+    ctx2.clearRect(0, 0, ctx2.canvas.width, ctx2.canvas.height);
+    ctx2.fillStyle = tickColor;
+    ctx2.font = '14px system-ui';
+    ctx2.textAlign = 'center';
+    ctx2.fillText('No medication data yet', ctx2.canvas.width / 2, ctx2.canvas.height / 2);
+  }
+
+  // ── Table
+  document.getElementById('reportTableBody').innerHTML = logs.reverse().map(l => `
+    <tr>
+      <td>${new Date(l.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+      <td>${l.type}</td>
+      <td>${l.sev}</td>
+      <td>${l.med ? l.med.join(', ') : '—'}</td>
+    </tr>
   `).join('');
 }
 
-/* PDF */
-async function generatePDF(){
-  const btn=document.getElementById('pdfBtn');
-  btn.innerText="Generating...";
-  const logs=await db.logs.orderBy('date').reverse().toArray();
-  document.getElementById('pdfTableBody').innerHTML=logs.map(l=>`
-    <tr><td>${new Date(l.date).toLocaleDateString()}</td><td>${l.type}</td><td>${l.sev}</td><td>${l.med.join(', ')}</td></tr>
+/* ══════════════════════════════
+   PDF EXPORT
+══════════════════════════════ */
+async function generatePDF() {
+  const btn = document.getElementById('pdfBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating...';
+
+  const logs = await db.logs.orderBy('date').reverse().toArray();
+
+  document.getElementById('pdfDate').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  document.getElementById('pdfTableBody').innerHTML = logs.map(l => `
+    <tr>
+      <td>${new Date(l.date).toLocaleDateString('en-GB')}</td>
+      <td>${l.time || '—'}</td>
+      <td>${l.type}</td>
+      <td>${l.sev}</td>
+      <td>${l.duration != null ? l.duration + 'h' : '—'}</td>
+      <td>${l.med ? l.med.join(', ') : '—'}</td>
+      <td>${l.notes || '—'}</td>
+    </tr>
   `).join('');
-  // Monthly chart for PDF
-  const summary={};
-  logs.forEach(l=>{
-    const m=new Date(l.date).toLocaleString('default',{month:'short',year:'numeric'});
-    if(!summary[m]) summary[m]={Migraine:0,Tension:0};
-    summary[m][l.type]++;
+
+  // Build monthly chart for PDF
+  const summary = {};
+  logs.forEach(l => {
+    const m = new Date(l.date).toLocaleString('default', { month: 'short', year: 'numeric' });
+    if (!summary[m]) summary[m] = { Migraine: 0, Tension: 0 };
+    summary[m][l.type] = (summary[m][l.type] || 0) + 1;
   });
-  const labels=Object.keys(summary);
-  const ctx=document.getElementById('pdfMonthlyChart').getContext('2d');
-  if(charts.pdfMonthlyChart) charts.pdfMonthlyChart.destroy();
-  charts.pdfMonthlyChart=new Chart(ctx,{
-    type:'bar',
-    data:{
+  const labels = Object.keys(summary);
+
+  const ctx = document.getElementById('pdfMonthlyChart').getContext('2d');
+  if (charts.pdf) charts.pdf.destroy();
+  charts.pdf = new Chart(ctx, {
+    type: 'bar',
+    data: {
       labels,
-      datasets:[
-        { label:'Migraines', data:labels.map(l=>summary[l].Migraine), backgroundColor:'#0984e3' },
-        { label:'Tension', data:labels.map(l=>summary[l].Tension), backgroundColor:'#e67e22' }
+      datasets: [
+        { label: 'Migraines', data: labels.map(l => summary[l].Migraine || 0), backgroundColor: '#0984e3', borderRadius: 4 },
+        { label: 'Tension',   data: labels.map(l => summary[l].Tension  || 0), backgroundColor: '#e67e22', borderRadius: 4 },
+        { label: 'Cluster',   data: labels.map(l => summary[l].Cluster  || 0), backgroundColor: '#805ad5', borderRadius: 4 },
+        { label: 'Other',     data: labels.map(l => summary[l].Other    || 0), backgroundColor: '#319795', borderRadius: 4 }
       ]
     },
-    options:{ animation:false, scales:{ y:{ beginAtZero:true, ticks:{ stepSize:1 } } } }
+    options: {
+      animation: false,
+      scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+    }
   });
-  setTimeout(async()=>{
-    const area=document.getElementById('pdf-report-area');
-    const canvas=await html2canvas(area,{scale:2,useCORS:true,logging:false});
-    const imgData=canvas.toDataURL('image/png');
-    const { jsPDF }=window.jspdf;
-    const doc=new jsPDF('p','mm','a4');
-    const imgProps=doc.getImageProperties(imgData);
-    const pdfWidth=doc.internal.pageSize.getWidth();
-    const pdfHeight=(imgProps.height*pdfWidth)/imgProps.width;
-    doc.addImage(imgData,'PNG',0,0,pdfWidth,pdfHeight);
-    doc.save("Headache_Clinical_Report.pdf");
-    btn.innerText="Export PDF Report";
-  },600);
+
+  setTimeout(async () => {
+    try {
+      const area = document.getElementById('pdf-report-area');
+      const canvas = await html2canvas(area, { scale: 2, useCORS: true, logging: false });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth  = doc.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      doc.save('Headache_Clinical_Report.pdf');
+    } catch(e) {
+      toast("❌ PDF generation failed");
+      console.error(e);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📄 Export PDF Report';
+    }
+  }, 700);
 }
 
-/* SERVICE WORKER */
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js"); }
+/* ══════════════════════════════
+   SERVICE WORKER
+══════════════════════════════ */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+/* ══════════════════════════════
+   INIT — set default time
+══════════════════════════════ */
+(function init() {
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('timeInput').value = `${hh}:${mm}`;
+})();
 </script>
 
 </body>
